@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TypingMaster Pro | Speed & Accuracy</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: { 
+                        sans: ['Inter', 'sans-serif'], 
+                        mono: ['JetBrains Mono', 'monospace'] 
+                    },
+                    colors: { 
+                        primary: '#6366f1', 
+                        bgDark: '#0f172a' 
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { transition: background-color 0.3s, color 0.3s; }
+        .char { position: relative; color: #64748b; transition: color 0.1s; }
+        .dark .char { color: #475569; }
+        .char.correct { color: #22c55e; }
+        .char.incorrect { color: #ef4444; background: rgba(239, 68, 68, 0.15); border-radius: 2px; }
+        .char.current { color: #6366f1; }
+        
+        #cursor {
+            position: absolute;
+            width: 2px;
+            height: 1.4em;
+            background: #6366f1;
+            transition: all 0.1s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            animation: blink 1s infinite;
+            pointer-events: none;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        
+        #typing-area:focus-within #focus-msg { opacity: 0; pointer-events: none; }
+        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-bgDark text-slate-900 dark:text-slate-100 min-h-screen font-sans">
+
+    <nav class="max-w-6xl mx-auto p-6 flex justify-between items-center">
+        <div class="flex items-center gap-2 text-2xl font-bold text-primary tracking-tight">
+            <i data-lucide="keyboard" class="w-8 h-8"></i> 
+            <span>TypingMaster<span class="text-slate-400 font-medium">Pro</span></span>
+        </div>
+        <div class="flex items-center gap-6">
+            <div class="hidden md:flex gap-6 text-sm font-medium">
+                <div class="flex flex-col items-end">
+                    <span class="opacity-50 text-[10px] uppercase">Daily Streak</span>
+                    <span id="streak-count" class="font-bold text-orange-500">0 Days</span>
+                </div>
+                <div class="flex flex-col items-end">
+                    <span class="opacity-50 text-[10px] uppercase">All-Time Best</span>
+                    <span id="best-wpm" class="font-bold text-primary">0 WPM</span>
+                </div>
+            </div>
+            <button id="theme-toggle" class="p-2.5 rounded-xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 hover:scale-105 transition">
+                <i data-lucide="moon" class="w-5 h-5 block dark:hidden"></i>
+                <i data-lucide="sun" class="w-5 h-5 hidden dark:block"></i>
+            </button>
+        </div>
+    </nav>
+
+    <main class="max-w-4xl mx-auto mt-12 md:mt-24 p-6">
+        <!-- Dashboard / Settings -->
+        <div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-12 bg-white dark:bg-slate-800/40 p-2 rounded-2xl border border-slate-200 dark:border-slate-700/50">
+            <div class="flex p-1 bg-slate-100 dark:bg-slate-900/50 rounded-xl w-full md:w-auto" id="difficulty-options">
+                <button data-val="easy" class="flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-semibold transition hover:text-primary">Easy</button>
+                <button data-val="medium" class="flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-semibold bg-white dark:bg-slate-800 text-primary shadow-sm">Medium</button>
+                <button data-val="hard" class="flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-semibold transition hover:text-primary">Hard</button>
+            </div>
+            
+            <div class="flex gap-2 p-1" id="time-options">
+                <button data-val="15" class="px-4 py-2 rounded-lg text-xs font-bold opacity-50 hover:opacity-100 transition">15s</button>
+                <button data-val="30" class="px-4 py-2 rounded-lg text-xs font-bold text-primary border-b-2 border-primary">30s</button>
+                <button data-val="60" class="px-4 py-2 rounded-lg text-xs font-bold opacity-50 hover:opacity-100 transition">60s</button>
+            </div>
+        </div>
+
+        <!-- Live Metrics -->
+        <div class="flex items-center justify-between mb-8 px-2">
+            <div class="flex items-baseline gap-2">
+                <span id="timer" class="text-7xl font-bold text-primary tabular-nums tracking-tighter">30</span>
+                <span class="text-sm font-bold opacity-30 uppercase tracking-widest">Seconds</span>
+            </div>
+            <div class="flex gap-12 text-right">
+                <div>
+                    <p class="text-[10px] uppercase font-bold opacity-40 mb-1">Speed</p>
+                    <p class="text-3xl font-black font-mono"><span id="wpm-live">0</span> <small class="text-xs opacity-40">WPM</small></p>
+                </div>
+                <div>
+                    <p class="text-[10px] uppercase font-bold opacity-40 mb-1">Accuracy</p>
+                    <p class="text-3xl font-black font-mono"><span id="acc-live">100</span><small class="text-xs opacity-40">%</small></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Typing Interface -->
+        <div id="typing-area" class="relative min-h-[200px] text-2xl md:text-3xl leading-relaxed font-mono select-none outline-none group bg-white/50 dark:bg-slate-900/20 p-8 rounded-3xl border border-transparent focus-within:border-primary/20 transition-all" tabindex="0">
+            <div id="focus-msg" class="absolute inset-0 z-20 flex items-center justify-center backdrop-blur-[3px] rounded-3xl transition-opacity duration-300">
+                <div class="flex items-center gap-3 bg-white dark:bg-slate-800 px-8 py-4 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 animate-bounce">
+                    <i data-lucide="mouse-pointer-2" class="w-5 h-5 text-primary"></i>
+                    <p class="font-bold text-sm">Click here to start typing</p>
+                </div>
+            </div>
+            
+            <div id="text-display" class="relative z-10 flex flex-wrap gap-x-[0.3em] gap-y-2">
+                <!-- Text characters injected here -->
+            </div>
+            <div id="cursor"></div>
+            
+            <!-- Hidden Input for mobile & event handling -->
+            <input type="text" id="hidden-input" class="opacity-0 absolute inset-0 -z-10 cursor-default" autocomplete="off" spellcheck="false">
+        </div>
+
+        <div class="mt-12 flex flex-col items-center gap-4">
+            <button id="restart-btn" class="flex items-center gap-2 px-8 py-3 bg-slate-200 dark:bg-slate-800 hover:bg-primary hover:text-white rounded-2xl font-bold transition-all group active:scale-95">
+                <i data-lucide="rotate-ccw" class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500"></i>
+                <span>New Test</span>
+            </button>
+            <p class="text-[10px] uppercase font-bold opacity-30 tracking-[0.2em]">Press <kbd class="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">Tab</kbd> + <kbd class="bg-slate-200 dark:bg-slate-700 px-1.5 py-0.5 rounded">Enter</kbd> to restart quickly</p>
+        </div>
+    </main>
+
+    <!-- Results Modal -->
+    <div id="results-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-xl z-50 hidden flex items-center justify-center p-6">
+        <div class="bg-white dark:bg-slate-900 max-w-xl w-full rounded-[2.5rem] p-10 shadow-2xl border border-white/10 overflow-hidden relative">
+            <div class="absolute top-0 right-0 p-10 opacity-5 pointer-events-none">
+                <i data-lucide="trophy" class="w-48 h-48"></i>
+            </div>
+            
+            <h2 class="text-4xl font-black mb-2 italic">TEST COMPLETE!</h2>
+            <p class="text-slate-500 dark:text-slate-400 mb-10 font-medium">Here is how you performed today.</p>
+            
+            <div class="grid grid-cols-2 gap-4 mb-10">
+                <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                    <p class="text-[10px] uppercase font-black opacity-40 mb-2 tracking-widest text-primary">Speed</p>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-5xl font-black" id="res-wpm">0</span>
+                        <span class="font-bold opacity-40">WPM</span>
+                    </div>
+                </div>
+                <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                    <p class="text-[10px] uppercase font-black opacity-40 mb-2 tracking-widest text-green-500">Accuracy</p>
+                    <div class="flex items-baseline gap-1">
+                        <span class="text-5xl font-black text-green-500" id="res-acc">0</span>
+                        <span class="font-bold opacity-40">%</span>
+                    </div>
+                </div>
+                <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                    <p class="text-[10px] uppercase font-black opacity-40 mb-2 tracking-widest text-red-500">Errors</p>
+                    <span class="text-4xl font-black" id="res-err">0</span>
+                </div>
+                <div class="p-6 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700/50">
+                    <p class="text-[10px] uppercase font-black opacity-40 mb-2 tracking-widest text-orange-500">Streak</p>
+                    <span class="text-4xl font-black" id="res-streak">0</span>
+                </div>
+            </div>
+
+            <button onclick="location.reload()" class="w-full py-5 bg-primary hover:bg-indigo-500 text-white rounded-2xl font-black text-lg shadow-xl shadow-primary/20 transition-all active:scale-[0.98]">
+                PRACTICE AGAIN
+            </button>
+        </div>
+    </div>
+
+    <script>
+        lucide.createIcons();
+        
+        let targetText = "";
+        let currentIndex = 0;
+        let startTime = null;
+        let timerInterval = null;
+        let timeLimit = 30;
+        let difficulty = 'medium';
+        let errors = 0;
+        let isActive = false;
+
+        const el = {
+            display: document.getElementById('text-display'),
+            input: document.getElementById('hidden-input'),
+            cursor: document.getElementById('cursor'),
+            timer: document.getElementById('timer'),
+            wpm: document.getElementById('wpm-live'),
+            acc: document.getElementById('acc-live'),
+            modal: document.getElementById('results-modal'),
+            typingArea: document.getElementById('typing-area'),
+            streak: document.getElementById('streak-count'),
+            best: document.getElementById('best-wpm')
+        };
+
+        // --- Core Logic ---
+        async function fetchText() {
+            try {
+                el.display.innerHTML = `<div class="w-full text-center py-4 opacity-50 text-sm animate-pulse">Generating ${difficulty} text...</div>`;
+                const res = await fetch(`/api/get-text?difficulty=${difficulty}`);
+                const data = await res.json();
+                targetText = data.text;
+                renderText();
+                resetGame();
+            } catch (err) {
+                el.display.innerHTML = `<div class="text-red-500 text-sm italic">Failed to connect to backend. Check Flask server.</div>`;
+            }
+        }
+
+        function renderText() {
+            el.display.innerHTML = targetText.split('').map(char => `<span class="char">${char}</span>`).join('');
+            setTimeout(updateCursor, 10);
+        }
+
+        function resetGame() {
+            currentIndex = 0;
+            errors = 0;
+            isActive = false;
+            clearInterval(timerInterval);
+            el.timer.innerText = timeLimit;
+            el.wpm.innerText = "0";
+            el.acc.innerText = "100";
+            el.input.value = "";
+            startTime = null;
+            updateCursor();
+        }
+
+        function updateCursor() {
+            const chars = el.display.querySelectorAll('.char');
+            if (currentIndex >= chars.length) return;
+            
+            const currentChar = chars[currentIndex];
+            const rect = currentChar.getBoundingClientRect();
+            const containerRect = el.display.getBoundingClientRect();
+            
+            el.cursor.style.left = (rect.left - containerRect.left) + 'px';
+            el.cursor.style.top = (rect.top - containerRect.top) + 'px';
+            
+            chars.forEach((c, i) => {
+                c.classList.remove('current');
+                if(i === currentIndex) c.classList.add('current');
+            });
+        }
+
+        function calculateStats() {
+            if (!startTime) return { wpm: 0, acc: 100 };
+            const timeElapsed = (Date.now() - startTime) / 60000; 
+            const wordsTyped = (currentIndex / 5);
+            const wpm = Math.round(wordsTyped / timeElapsed) || 0;
+            const acc = Math.round(((currentIndex - errors) / Math.max(1, currentIndex)) * 100);
+            
+            el.wpm.innerText = wpm;
+            el.acc.innerText = acc;
+            return { wpm, acc };
+        }
+
+        async function endGame() {
+            if (!isActive) return;
+            isActive = false;
+            clearInterval(timerInterval);
+            const stats = calculateStats();
+            
+            document.getElementById('res-wpm').innerText = stats.wpm;
+            document.getElementById('res-acc').innerText = stats.acc;
+            document.getElementById('res-err').innerText = errors;
+            
+            el.modal.classList.remove('hidden');
+            
+            try {
+                const response = await fetch('/api/submit-result', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        wpm: stats.wpm,
+                        accuracy: stats.acc,
+                        errors: errors,
+                        difficulty: difficulty
+                    })
+                });
+                const result = await response.json();
+                document.getElementById('res-streak').innerText = result.streak;
+                el.streak.innerText = result.streak + " Days";
+                el.best.innerText = result.best_wpm + " WPM";
+            } catch (e) {
+                console.error("Result submission failed", e);
+            }
+        }
+
+        // --- Interaction ---
+        el.typingArea.addEventListener('click', () => el.input.focus());
+
+        el.input.addEventListener('input', (e) => {
+            if (!isActive && e.target.value.length > 0) {
+                isActive = true;
+                startTime = Date.now();
+                timerInterval = setInterval(() => {
+                    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+                    const remaining = timeLimit - elapsed;
+                    el.timer.innerText = Math.max(0, remaining);
+                    calculateStats();
+                    if (remaining <= 0) endGame();
+                }, 1000);
+            }
+
+            const val = e.target.value;
+            const chars = el.display.querySelectorAll('.char');
+
+            // Logic for deletions
+            if (val.length < currentIndex) {
+                currentIndex = val.length;
+                chars[currentIndex].classList.remove('correct', 'incorrect');
+            } else {
+                const lastIdx = val.length - 1;
+                if (val[lastIdx] === targetText[lastIdx]) {
+                    chars[lastIdx].classList.add('correct');
+                    chars[lastIdx].classList.remove('incorrect');
+                } else {
+                    chars[lastIdx].classList.add('incorrect');
+                    errors++;
+                }
+                currentIndex = val.length;
+            }
+
+            if (currentIndex >= targetText.length) endGame();
+            updateCursor();
+        });
+
+        // Prevention of paste for integrity
+        el.input.addEventListener('paste', e => e.preventDefault());
+
+        // Settings Controllers
+        document.getElementById('difficulty-options').addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (btn) {
+                difficulty = btn.dataset.val;
+                document.querySelectorAll('#difficulty-options button').forEach(b => {
+                    b.className = "flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-semibold transition hover:text-primary";
+                });
+                btn.className = "flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-semibold bg-white dark:bg-slate-800 text-primary shadow-sm";
+                fetchText();
+            }
+        });
+
+        document.getElementById('time-options').addEventListener('click', (e) => {
+            const btn = e.target.closest('button');
+            if (btn) {
+                timeLimit = parseInt(btn.dataset.val);
+                document.querySelectorAll('#time-options button').forEach(b => {
+                    b.className = "px-4 py-2 rounded-lg text-xs font-bold opacity-50 hover:opacity-100 transition";
+                });
+                btn.className = "px-4 py-2 rounded-lg text-xs font-bold text-primary border-b-2 border-primary";
+                resetGame();
+            }
+        });
+
+        document.getElementById('theme-toggle').addEventListener('click', () => {
+            document.documentElement.classList.toggle('dark');
+        });
+
+        document.getElementById('restart-btn').addEventListener('click', fetchText);
+
+        // Window resize keeps cursor accurate
+        window.addEventListener('resize', updateCursor);
+
+        // Init
+        fetchText();
+    </script>
+</body>
+</html>
